@@ -6,12 +6,19 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint . && bun run typecheck",
+    "lint:staged": "eslint $(git diff --cached --name-only --diff-filter=ACM \"*.ts\" \"*.tsx\" | sed 's| |\\\\ |g')",
+    "prettier": "prettier --write **/*.{ts,tsx}",
+    "prettier:staged": "prettier --write $(git diff --cached --name-only --diff-filter=ACM \"*.ts\" \"*.tsx\" | sed 's| |\\\\ |g')",
+    "typecheck": "tsc"
   },
   "dependencies": {
+    "firebase": "^10.12.2",
+    "next": "14.2.3",
+    "prettier": "^3.2.5",
     "react": "^18",
     "react-dom": "^18",
-    "next": "14.2.3"
+    "react-infinite-scroll-component": "^6.1.0"
   },
   "devDependencies": {
     "typescript": "^5",
