@@ -24,9 +24,9 @@ const config: Config = {
       fontFamily: {
         primary: ['Playfair Display', 'serif'],
       },
-      maxWidth:{
+      maxWidth: {
         '2000': '2000px',
-      }
+      },
     },
   },
   plugins: [],

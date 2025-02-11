@@ -11,9 +11,9 @@ type Photo = {
   alt: string
 }
 
-const gridCols = 'grid grid-cols-3 max-w-2000';
-const gridGaps = 'gap-1 sm:gap-2 md:gap-3 xl:gap-4';
-const gridMargins = 'ml-0 mr-0 md:ml-[4%] md:mr-[4%] xl:ml-[7%] xl:mr-[7%]';
+const gridCols = 'grid grid-cols-3 max-w-2000'
+const gridGaps = 'gap-1 sm:gap-2 md:gap-3 xl:gap-4'
+const gridMargins = 'ml-0 mr-0 md:ml-[4%] md:mr-[4%] xl:ml-[7%] xl:mr-[7%]'
 
 // TODO safeguard against typo in image names.
 export default function Home() {
@@ -37,11 +37,11 @@ export default function Home() {
 
   const fetchPhotos = async () => {
     const listRef = ref(storage)
-  
+
     try {
       const mosaic = await listAll(listRef)
       const urls = await Promise.all(mosaic.items.map((item) => getDownloadURL(item)))
-  
+
       const sortedUrls = getSortedUrlsForGrid(urls)
       setPhotos(sortedUrls.map((url) => ({ src: url, alt: '' })))
     } catch (error) {
@@ -56,17 +56,15 @@ export default function Home() {
   }, [])
 
   return (
-
     <main className="flex flex-col">
       <div className={`mb-8 ${gridMargins}`}>
         <Header />
       </div>
       <div className={`${gridCols} ${gridGaps} ${gridMargins}`}>
         {photos.map((photo, index) => (
-            <ImageCard key={index} source={photo.src} altText={photo.alt} />
+          <ImageCard key={index} source={photo.src} altText={photo.alt} />
         ))}
       </div>
     </main>
-
   )
 }
