@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import React from 'react'
 
 type ImageCardProps = {
@@ -7,7 +8,9 @@ type ImageCardProps = {
 
 const ImageCard = ({ source, altText }: ImageCardProps) => {
   return (
-      <img src={source} alt={altText} className="w-full h-auto object-cover" />
+    <div className="relative w-full aspect-[1/1] overflow-hidden">
+        <img src={source} alt={altText} className="w-full h-full object-cover" />
+    </div>
   )
 }
 

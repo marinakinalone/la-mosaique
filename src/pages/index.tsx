@@ -11,6 +11,10 @@ type Photo = {
   alt: string
 }
 
+const gridCols = 'grid grid-cols-3 max-w-2000';
+const gridGaps = 'gap-1 sm:gap-2 md:gap-3 xl:gap-4';
+const gridMargins = 'ml-0 mr-0 md:ml-[4%] md:mr-[4%] xl:ml-[7%] xl:mr-[7%]';
+
 // TODO safeguard against typo in image names.
 export default function Home() {
   const [photos, setPhotos] = useState<Photo[]>([])
@@ -24,6 +28,7 @@ export default function Home() {
     }
 
     for (let i = 0; i < blankSpaces; i++) {
+      //TODO fix this
       sortedUrls.unshift('SQUARE')
     }
 
@@ -32,14 +37,18 @@ export default function Home() {
 
   const fetchPhotos = async () => {
     const listRef = ref(storage)
-
-    const res = await listAll(listRef)
-    const urls = await Promise.all(res.items.map((item) => getDownloadURL(item)))
-
-    getSortedUrlsForGrid(urls)
-
-    setPhotos(urls.map((url) => ({ src: url, alt: '' })))
+  
+    try {
+      const mosaic = await listAll(listRef)
+      const urls = await Promise.all(mosaic.items.map((item) => getDownloadURL(item)))
+  
+      const sortedUrls = getSortedUrlsForGrid(urls)
+      setPhotos(sortedUrls.map((url) => ({ src: url, alt: '' })))
+    } catch (error) {
+      console.error('Error fetching photos:', error)
+    }
   }
+
   useEffect(() => {
     fetchPhotos()
 
@@ -48,13 +57,13 @@ export default function Home() {
 
   return (
 
-    <main className="flex flex-col items-center">
-      <Header />
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+    <main className="flex flex-col">
+      <div className={`mb-8 ${gridMargins}`}>
+        <Header />
+      </div>
+      <div className={`${gridCols} ${gridGaps} ${gridMargins}`}>
         {photos.map((photo, index) => (
-          <div key={index} className="flex justify-center items-center">
-            <ImageCard source={photo.src} altText={photo.alt} />
-          </div>
+            <ImageCard key={index} source={photo.src} altText={photo.alt} />
         ))}
       </div>
     </main>
