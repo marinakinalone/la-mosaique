@@ -13,7 +13,7 @@ type Photo = {
 
 const gridCols = 'grid grid-cols-3 max-w-2000'
 const gridGaps = 'gap-1 sm:gap-2 md:gap-3 xl:gap-4'
-const gridMargins = 'ml-0 mr-0 md:ml-[4%] md:mr-[4%] xl:ml-[7%] xl:mr-[7%]'
+const gridMargins = 'ml-0 mr-0 md:ml-[5%] md:mr-[5%] lg:ml-[10%] lg:mr-[10%] xl:ml-[15%] xl:mr-[15%] 2xl:ml-[18%] 2xl:mr-[18%]'
 
 // TODO safeguard against typo in image names.
 export default function Home() {
