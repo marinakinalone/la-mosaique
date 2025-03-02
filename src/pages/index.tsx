@@ -11,8 +11,8 @@ type Photo = {
 }
 
 const ANIMATION_INTERVAL = 100
-const MAX_VISIBLE_INDEX = 27
-const BLANK_SQUARE = 'BLANK_SQUARE'
+const MAX_VISIBLE_INDEX = 24
+const MORE_INDEXES = 9
 
 const gridCols = 'grid grid-cols-3 max-w-2000'
 const gridGaps = 'gap-1 sm:gap-2 md:gap-3 xl:gap-4'
@@ -23,7 +23,10 @@ export default function Home() {
   const [photos, setPhotos] = useState<Photo[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<boolean>(false)
-  const [visibleIndex, setVisibleIndex] = useState<number>(0)
+  const [visibleBackgroundIndex, setVisibleBackgroundIndex] = useState<number>(0)
+  const [visibleImageIndex, setVisibleImageIndex] = useState<number>(-1)
+  const [maxVisibleIndex, setMaxVisibleIndex] = useState<number>(MAX_VISIBLE_INDEX)
+  const [isEndOfScroll, setIsEndOfScroll] = useState<boolean>(false)
 
   const getSortedUrlsForGrid = (urls: string[]) => {
     const sortedUrls = sortUrlsByImageNumberDescending(urls)
@@ -33,8 +36,8 @@ export default function Home() {
       return sortedUrls
     }
 
-    for (let i = 0; i < blankSpaces; i++) {
-      sortedUrls.unshift(BLANK_SQUARE)
+    for (let i = 0; i < blankSpaces + 3; i++) {
+      sortedUrls.shift()
     }
 
     return sortedUrls
@@ -46,8 +49,8 @@ export default function Home() {
     try {
       const mosaic = await listAll(listRef)
       const urls = await Promise.all(mosaic.items.map((item) => getDownloadURL(item)))
-
       const sortedUrls = getSortedUrlsForGrid(urls)
+
       setPhotos(sortedUrls.map((url) => ({ src: url, alt: '' })))
       setLoading(false)
     } catch (error) {
@@ -63,15 +66,43 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    if (!error && visibleIndex < photos.length) {
+    if (!error && visibleBackgroundIndex < maxVisibleIndex) {
       const timer = setTimeout(() => {
-        setVisibleIndex((prevIndex) => prevIndex + 1)
+        setVisibleBackgroundIndex((prevIndex) => prevIndex + 1)
       }, ANIMATION_INTERVAL)
       return () => clearTimeout(timer)
     }
-  }, [error, visibleIndex, photos.length])
+  }, [error, visibleBackgroundIndex, maxVisibleIndex])
 
-  const displayImage = !loading && !error && visibleIndex >= MAX_VISIBLE_INDEX
+  useEffect(() => {
+    if (!loading && !error && visibleBackgroundIndex >= visibleImageIndex) {
+      const timer = setTimeout(() => {
+        setVisibleImageIndex((prevIndex) => prevIndex + 1)
+      }, ANIMATION_INTERVAL * 2)
+      return () => clearTimeout(timer)
+    }
+  }, [error, loading, maxVisibleIndex, visibleBackgroundIndex, visibleImageIndex])
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.innerHeight + window.scrollY >= document.body.offsetHeight) {
+        setIsEndOfScroll(true)
+      } else {
+        setIsEndOfScroll(false)
+      }
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  useEffect(() => {
+    if (visibleImageIndex >= maxVisibleIndex && isEndOfScroll) {
+      setMaxVisibleIndex((prevIndex) => prevIndex + MORE_INDEXES)
+    }
+  }, [visibleImageIndex, isEndOfScroll, maxVisibleIndex])
+
+  const displayImage = (index: number): boolean => !loading && !error && index <= visibleImageIndex
 
   return (
     <main className="flex flex-col">
@@ -81,19 +112,21 @@ export default function Home() {
       <div className={`${gridMargins}`}>
         {!error && (
           <div className={`${gridCols} ${gridGaps}`}>
-            {photos.slice(0, visibleIndex).map((photo, index) => (
+            {photos.slice(0, visibleBackgroundIndex).map((photo, index) => (
               <ImageCard
                 key={index}
                 index={index}
                 source={photo.src}
                 altText={photo.alt}
-                displayImage={displayImage}
+                displayImage={displayImage(index)}
               />
             ))}
           </div>
         )}
 
-        {error && <p>There was an error fetching the images... Refresh the page or come back later.</p>}
+        {error && (
+          <p>There was an error fetching the images... Refresh the page or come back later.</p>
+        )}
       </div>
     </main>
   )
