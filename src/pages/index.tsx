@@ -20,7 +20,7 @@ const gridMargins =
   'ml-0 mr-0 md:ml-[5%] md:mr-[5%] lg:ml-[10%] lg:mr-[10%] xl:ml-[15%] xl:mr-[15%] 2xl:ml-[18%] 2xl:mr-[18%]'
 
 export default function Home() {
-  const [photos, setPhotos] = useState<Photo[]>([])
+  const [photos, setPhotos] = useState<Photo[]>(Array.from({ length: MAX_VISIBLE_INDEX }, () => ({ src: '', alt: '' })))
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<boolean>(false)
   const [visibleBackgroundIndex, setVisibleBackgroundIndex] = useState<number>(0)
@@ -61,12 +61,12 @@ export default function Home() {
 
   useEffect(() => {
     fetchPhotos()
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
     if (!error && visibleBackgroundIndex < maxVisibleIndex) {
+      console.log('visibleBackgroundIndex', visibleBackgroundIndex)
       const timer = setTimeout(() => {
         setVisibleBackgroundIndex((prevIndex) => prevIndex + 1)
       }, ANIMATION_INTERVAL)
