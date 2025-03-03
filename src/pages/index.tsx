@@ -66,7 +66,6 @@ export default function Home() {
 
   useEffect(() => {
     if (!error && visibleBackgroundIndex < maxVisibleIndex) {
-      console.log('visibleBackgroundIndex', visibleBackgroundIndex)
       const timer = setTimeout(() => {
         setVisibleBackgroundIndex((prevIndex) => prevIndex + 1)
       }, ANIMATION_INTERVAL)
