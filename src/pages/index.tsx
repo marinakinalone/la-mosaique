@@ -4,6 +4,7 @@ import { ref, getDownloadURL, listAll } from 'firebase/storage'
 import { storage } from '@/utils/firebase'
 import { sortUrlsByImageNumberDescending } from '@/helpers/imageGridHelpers'
 import ImageCard from '@/components/ImageCard'
+import ImageModal from '@/components/ImageModal'
 import { preloadBatch, Photo } from '@/utils/imagePreloader'
 import { useIntersectionObserver } from '@/hooks/useIntersectionObserver'
 
@@ -23,6 +24,8 @@ export default function Home() {
   const [visibleCount, setVisibleCount] = useState(0)
   const [loadedBatches, setLoadedBatches] = useState(0)
   const [isPreloading, setIsPreloading] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [modalImageIndex, setModalImageIndex] = useState(0)
 
   const getSortedUrlsForGrid = (urls: string[]) => {
     const sortedUrls = sortUrlsByImageNumberDescending(urls)
@@ -111,6 +114,15 @@ export default function Home() {
 
   const displayImage = (index: number): boolean => !loading && !error && index < visibleCount
 
+  const handleImageClick = (index: number) => {
+    setModalImageIndex(index)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+  }
+
   return (
     <main className="flex flex-col">
       <div className={`mb-8 ${gridMargins}`}>
@@ -126,6 +138,7 @@ export default function Home() {
                 source={photo.src}
                 altText={photo.alt}
                 displayImage={displayImage(index)}
+                onClick={() => handleImageClick(index)}
               />
             ))}
 
@@ -140,6 +153,14 @@ export default function Home() {
           <p>There was an error fetching the images... Refresh the page or come back later.</p>
         )}
       </div>
+
+      {/* Image Modal */}
+      <ImageModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        images={loadedPhotos.map((photo) => photo.src)}
+        initialIndex={modalImageIndex}
+      />
     </main>
   )
 }

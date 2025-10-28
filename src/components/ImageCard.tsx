@@ -7,13 +7,15 @@ type ImageCardProps = {
   altText: string
   index: number
   displayImage: boolean
+  onClick?: () => void
 }
 
-const ImageCard = ({ source, altText, index, displayImage }: ImageCardProps) => {
+const ImageCard = ({ source, altText, index, displayImage, onClick }: ImageCardProps) => {
   return (
     <div
-      className="relative w-full aspect-[1/1] overflow-hidden"
+      className="relative w-full aspect-[1/1] overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
       style={{ backgroundColor: getBackgroundColor(index) }}
+      onClick={onClick}
     >
       {displayImage ? (
         <img src={source} alt={altText} className="w-full h-full object-cover" />
