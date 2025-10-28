@@ -1,9 +1,9 @@
-import React, { useEffect } from 'react'
+/* eslint-disable @next/next/no-img-element */
+import React, { useEffect, useState } from 'react'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import { Navigation, Pagination, Keyboard, Mousewheel } from 'swiper/modules'
+import { getBackgroundColor } from '@/utils/getBackgroundColor'
 import type { Swiper as SwiperType } from 'swiper'
-
-// Import Swiper styles
 import 'swiper/css'
 import 'swiper/css/navigation'
 import 'swiper/css/pagination'
@@ -16,7 +16,8 @@ type ImageModalProps = {
 }
 
 const ImageModal = ({ isOpen, onClose, images, initialIndex }: ImageModalProps) => {
-  const [swiper, setSwiper] = React.useState<SwiperType | null>(null)
+  const [swiper, setSwiper] = useState<SwiperType | null>(null)
+  const [activeIndex, setActiveIndex] = useState(initialIndex)
 
   // Handle escape key
   useEffect(() => {
@@ -54,7 +55,7 @@ const ImageModal = ({ isOpen, onClose, images, initialIndex }: ImageModalProps) 
     >
       {/* Close button */}
       <button
-        className="absolute top-4 right-4 z-10 text-white text-2xl font-bold hover:text-gray-300 transition-colors"
+        className="absolute top-4 right-4 z-10 text-primary_light text-2xl font-bold hover:opacity-70 transition-opacity"
         onClick={onClose}
         aria-label="Close modal"
       >
@@ -75,6 +76,11 @@ const ImageModal = ({ isOpen, onClose, images, initialIndex }: ImageModalProps) 
           pagination={{
             clickable: true,
             dynamicBullets: true,
+            renderBullet: (index, className) => {
+              const isActive = index === activeIndex
+              const backgroundColor = getBackgroundColor(index)
+              return `<span class="${className}" style="background-color: ${backgroundColor}; opacity: ${isActive ? '1' : '0.5'}; width: 12px; height: 12px; border-radius: 50%; margin: 0 4px; transition: opacity 0.3s ease;"></span>`
+            },
           }}
           keyboard={{
             enabled: true,
@@ -106,8 +112,8 @@ const ImageModal = ({ isOpen, onClose, images, initialIndex }: ImageModalProps) 
         </Swiper>
 
         {/* Custom navigation buttons */}
-        <div className="swiper-button-prev !text-white !text-2xl hover:!text-gray-300 transition-colors"></div>
-        <div className="swiper-button-next !text-white !text-2xl hover:!text-gray-300 transition-colors"></div>
+        <div className="swiper-button-prev !text-primary_light !text-2xl hover:!opacity-70 transition-opacity"></div>
+        <div className="swiper-button-next !text-primary_light !text-2xl hover:!opacity-70 transition-opacity"></div>
       </div>
     </div>
   )
