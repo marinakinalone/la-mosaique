@@ -1,18 +1,14 @@
 import Header from '@/components/Header'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { ref, getDownloadURL, listAll } from 'firebase/storage'
 import { storage } from '@/utils/firebase'
 import { sortUrlsByImageNumberDescending } from '@/helpers/imageGridHelpers'
 import ImageCard from '@/components/ImageCard'
+import { preloadBatch, Photo } from '@/utils/imagePreloader'
+import { useIntersectionObserver } from '@/hooks/useIntersectionObserver'
 
-type Photo = {
-  src: string
-  alt: string
-}
-
-const ANIMATION_INTERVAL = 100
-const MAX_VISIBLE_INDEX = 24
-const MORE_INDEXES = 9
+const BATCH_SIZE = 12 // Load 12 images at a time (4 rows of 3)
+const STAGGER_DELAY = 50 // Delay between displaying each image
 
 const gridCols = 'grid grid-cols-3 max-w-2000'
 const gridGaps = 'gap-1 sm:gap-2 md:gap-3 xl:gap-4'
@@ -20,13 +16,13 @@ const gridMargins =
   'ml-0 mr-0 md:ml-[5%] md:mr-[5%] lg:ml-[10%] lg:mr-[10%] xl:ml-[15%] xl:mr-[15%] 2xl:ml-[18%] 2xl:mr-[18%]'
 
 export default function Home() {
-  const [photos, setPhotos] = useState<Photo[]>(Array.from({ length: MAX_VISIBLE_INDEX }, () => ({ src: '', alt: '' })))
+  const [allPhotos, setAllPhotos] = useState<Photo[]>([])
+  const [loadedPhotos, setLoadedPhotos] = useState<Photo[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<boolean>(false)
-  const [visibleBackgroundIndex, setVisibleBackgroundIndex] = useState<number>(0)
-  const [visibleImageIndex, setVisibleImageIndex] = useState<number>(-1)
-  const [maxVisibleIndex, setMaxVisibleIndex] = useState<number>(MAX_VISIBLE_INDEX)
-  const [isEndOfScroll, setIsEndOfScroll] = useState<boolean>(false)
+  const [visibleCount, setVisibleCount] = useState(0)
+  const [loadedBatches, setLoadedBatches] = useState(0)
+  const [isPreloading, setIsPreloading] = useState(false)
 
   const getSortedUrlsForGrid = (urls: string[]) => {
     const sortedUrls = sortUrlsByImageNumberDescending(urls)
@@ -43,7 +39,7 @@ export default function Home() {
     return sortedUrls
   }
 
-  const fetchPhotos = async () => {
+  const fetchPhotos = useCallback(async () => {
     const listRef = ref(storage)
 
     try {
@@ -51,57 +47,69 @@ export default function Home() {
       const urls = await Promise.all(mosaic.items.map((item) => getDownloadURL(item)))
       const sortedUrls = getSortedUrlsForGrid(urls)
 
-      setPhotos(sortedUrls.map((url) => ({ src: url, alt: '' })))
+      setAllPhotos(
+        sortedUrls.map((url) => ({
+          src: url,
+          alt: '',
+          isLoaded: false,
+          isLoading: false,
+        })),
+      )
       setLoading(false)
     } catch (error) {
       console.error('Error fetching photos:', error)
       setError(true)
     }
-  }
+  }, [])
+
+  const loadNextBatch = useCallback(async () => {
+    if (isPreloading || loadedBatches * BATCH_SIZE >= allPhotos.length) return
+
+    setIsPreloading(true)
+    const startIndex = loadedBatches * BATCH_SIZE
+    const endIndex = Math.min(startIndex + BATCH_SIZE, allPhotos.length)
+    const batchUrls = allPhotos.slice(startIndex, endIndex).map((photo) => photo.src)
+
+    try {
+      const loadedBatch = await preloadBatch(batchUrls)
+      setLoadedPhotos((prev) => [...prev, ...loadedBatch])
+      setLoadedBatches((prev) => prev + 1)
+    } catch (error) {
+      console.error('Error loading batch:', error)
+    } finally {
+      setIsPreloading(false)
+    }
+  }, [isPreloading, loadedBatches, allPhotos])
+
+  const { ref: loadMoreRef } = useIntersectionObserver(() => {
+    if (!isPreloading && loadedBatches * BATCH_SIZE < allPhotos.length) {
+      loadNextBatch()
+    }
+  }, 0.1)
 
   useEffect(() => {
     fetchPhotos()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [fetchPhotos])
 
+  // Load first batch when photos are fetched
   useEffect(() => {
-    if (!error && visibleBackgroundIndex < maxVisibleIndex) {
+    if (allPhotos.length > 0 && loadedBatches === 0) {
+      loadNextBatch()
+    }
+  }, [allPhotos, loadedBatches, loadNextBatch])
+
+  // Staggered display of loaded images
+  useEffect(() => {
+    if (loadedPhotos.length > 0 && visibleCount < loadedPhotos.length) {
       const timer = setTimeout(() => {
-        setVisibleBackgroundIndex((prevIndex) => prevIndex + 1)
-      }, ANIMATION_INTERVAL)
+        setVisibleCount((prev) => prev + 1)
+      }, STAGGER_DELAY)
+
       return () => clearTimeout(timer)
     }
-  }, [error, visibleBackgroundIndex, maxVisibleIndex])
+  }, [loadedPhotos.length, visibleCount])
 
-  useEffect(() => {
-    if (!loading && !error && visibleBackgroundIndex >= visibleImageIndex) {
-      const timer = setTimeout(() => {
-        setVisibleImageIndex((prevIndex) => prevIndex + 1)
-      }, ANIMATION_INTERVAL * 2)
-      return () => clearTimeout(timer)
-    }
-  }, [error, loading, maxVisibleIndex, visibleBackgroundIndex, visibleImageIndex])
-
-  useEffect(() => {
-    const handleScroll = () => {
-      if (window.innerHeight + window.scrollY >= document.body.offsetHeight) {
-        setIsEndOfScroll(true)
-      } else {
-        setIsEndOfScroll(false)
-      }
-    }
-
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
-
-  useEffect(() => {
-    if (visibleImageIndex >= maxVisibleIndex && isEndOfScroll) {
-      setMaxVisibleIndex((prevIndex) => prevIndex + MORE_INDEXES)
-    }
-  }, [visibleImageIndex, isEndOfScroll, maxVisibleIndex])
-
-  const displayImage = (index: number): boolean => !loading && !error && index <= visibleImageIndex
+  const displayImage = (index: number): boolean => !loading && !error && index < visibleCount
 
   return (
     <main className="flex flex-col">
@@ -111,7 +119,7 @@ export default function Home() {
       <div className={`${gridMargins}`}>
         {!error && (
           <div className={`${gridCols} ${gridGaps}`}>
-            {photos.slice(0, visibleBackgroundIndex).map((photo, index) => (
+            {loadedPhotos.map((photo, index) => (
               <ImageCard
                 key={index}
                 index={index}
@@ -120,6 +128,11 @@ export default function Home() {
                 displayImage={displayImage(index)}
               />
             ))}
+
+            {/* Load more trigger - invisible div that triggers loading */}
+            {loadedBatches * BATCH_SIZE < allPhotos.length && (
+              <div ref={loadMoreRef} className="col-span-3 h-20" />
+            )}
           </div>
         )}
 
