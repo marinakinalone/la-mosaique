@@ -9,6 +9,7 @@ import { preloadBatch, Photo } from '@/utils/imagePreloader'
 import { useIntersectionObserver } from '@/hooks/useIntersectionObserver'
 
 const BATCH_SIZE = 12 // Load 12 images at a time (4 rows of 3)
+const MOBILE_BATCH_SIZE = 6 // Smaller batch size for mobile to prevent memory issues
 const STAGGER_DELAY = 50 // Delay between displaying each image
 
 const gridCols = 'grid grid-cols-3 max-w-2000'
@@ -26,6 +27,12 @@ export default function Home() {
   const [isPreloading, setIsPreloading] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalImageIndex, setModalImageIndex] = useState(0)
+
+  // Get batch size based on screen width
+  const getBatchSize = useCallback(() => {
+    if (typeof window === 'undefined') return BATCH_SIZE
+    return window.innerWidth < 768 ? MOBILE_BATCH_SIZE : BATCH_SIZE
+  }, [])
 
   const getSortedUrlsForGrid = (urls: string[]) => {
     const sortedUrls = sortUrlsByImageNumberDescending(urls)
@@ -66,11 +73,12 @@ export default function Home() {
   }, [])
 
   const loadNextBatch = useCallback(async () => {
-    if (isPreloading || loadedBatches * BATCH_SIZE >= allPhotos.length) return
+    if (isPreloading || loadedPhotos.length >= allPhotos.length) return
 
     setIsPreloading(true)
-    const startIndex = loadedBatches * BATCH_SIZE
-    const endIndex = Math.min(startIndex + BATCH_SIZE, allPhotos.length)
+    const batchSize = getBatchSize()
+    const startIndex = loadedPhotos.length
+    const endIndex = Math.min(startIndex + batchSize, allPhotos.length)
     const batchUrls = allPhotos.slice(startIndex, endIndex).map((photo) => photo.src)
 
     try {
@@ -82,10 +90,10 @@ export default function Home() {
     } finally {
       setIsPreloading(false)
     }
-  }, [isPreloading, loadedBatches, allPhotos])
+  }, [isPreloading, loadedPhotos.length, allPhotos, getBatchSize])
 
   const { ref: loadMoreRef } = useIntersectionObserver(() => {
-    if (!isPreloading && loadedBatches * BATCH_SIZE < allPhotos.length) {
+    if (!isPreloading && loadedPhotos.length < allPhotos.length) {
       loadNextBatch()
     }
   }, 0.1)
@@ -99,7 +107,8 @@ export default function Home() {
     if (allPhotos.length > 0 && loadedBatches === 0) {
       loadNextBatch()
     }
-  }, [allPhotos, loadedBatches, loadNextBatch])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allPhotos.length, loadedBatches])
 
   // Staggered display of loaded images
   useEffect(() => {
@@ -133,7 +142,7 @@ export default function Home() {
           <div className={`${gridCols} ${gridGaps}`}>
             {loadedPhotos.map((photo, index) => (
               <ImageCard
-                key={index}
+                key={`${photo.src}-${index}`}
                 index={index}
                 source={photo.src}
                 altText={photo.alt}
@@ -143,7 +152,7 @@ export default function Home() {
             ))}
 
             {/* Load more trigger - invisible div that triggers loading */}
-            {loadedBatches * BATCH_SIZE < allPhotos.length && (
+            {loadedPhotos.length < allPhotos.length && (
               <div ref={loadMoreRef} className="col-span-3 h-20" />
             )}
           </div>
