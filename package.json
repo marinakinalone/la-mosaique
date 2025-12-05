@@ -13,23 +13,23 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "firebase": "^10.12.2",
-    "firebase-admin": "^13.1.0",
-    "next": "^15.1.6",
-    "prettier": "^3.2.5",
-    "react": "^18",
-    "react-dom": "^18",
+    "firebase": "^10.14.1",
+    "firebase-admin": "^13.6.0",
+    "next": "^16.0.7",
+    "prettier": "^3.7.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "swiper": "^12.0.3",
-    "vercel": "latest"
+    "vercel": "^49.1.0"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
-    "postcss": "^8",
-    "tailwindcss": "^3.4.1",
-    "eslint": "^8",
+    "typescript": "^5.9.3",
+    "@types/node": "^20.19.25",
+    "@types/react": "^18.3.27",
+    "@types/react-dom": "^18.3.7",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.18",
+    "eslint": "^8.57.1",
     "eslint-config-next": "14.2.3"
   }
 }
