@@ -91,6 +91,7 @@ const ImageModal = ({ isOpen, onClose, images, initialIndex }: ImageModalProps) 
             releaseOnEdges: true,
           }}
           onSwiper={setSwiper}
+          onSlideChange={(swiper) => setActiveIndex(swiper.activeIndex)}
           className="w-full h-full"
           spaceBetween={20}
           centeredSlides={true}

@@ -1,16 +1,16 @@
 import Header from '@/components/Header'
-import { useEffect, useState, useCallback } from 'react'
+import LoadingSpinner from '@/components/LoadingSpinner'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { ref, getDownloadURL, listAll } from 'firebase/storage'
 import { storage } from '@/utils/firebase'
 import { sortUrlsByImageNumberDescending } from '@/helpers/imageGridHelpers'
 import ImageCard from '@/components/ImageCard'
 import ImageModal from '@/components/ImageModal'
-import { preloadBatch, Photo } from '@/utils/imagePreloader'
+import { createPlaceholderBatch, loadImage, Photo } from '@/utils/imagePreloader'
 import { useIntersectionObserver } from '@/hooks/useIntersectionObserver'
 
-const BATCH_SIZE = 12 // Load 12 images at a time (4 rows of 3)
-const MOBILE_BATCH_SIZE = 6 // Smaller batch size for mobile to prevent memory issues
-const STAGGER_DELAY = 50 // Delay between displaying each image
+const BATCH_SIZE = 12
+const MOBILE_BATCH_SIZE = 6
 
 const gridCols = 'grid grid-cols-3 max-w-2000'
 const gridGaps = 'gap-1 sm:gap-2 md:gap-3 xl:gap-4'
@@ -22,13 +22,15 @@ export default function Home() {
   const [loadedPhotos, setLoadedPhotos] = useState<Photo[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<boolean>(false)
-  const [visibleCount, setVisibleCount] = useState(0)
-  const [loadedBatches, setLoadedBatches] = useState(0)
   const [isPreloading, setIsPreloading] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalImageIndex, setModalImageIndex] = useState(0)
 
-  // Get batch size based on screen width
+  const isPreloadingRef = useRef(false)
+  const loadedCountRef = useRef(0)
+  const allPhotosRef = useRef<Photo[]>([])
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+
   const getBatchSize = useCallback(() => {
     if (typeof window === 'undefined') return BATCH_SIZE
     return window.innerWidth < 768 ? MOBILE_BATCH_SIZE : BATCH_SIZE
@@ -49,79 +51,112 @@ export default function Home() {
     return sortedUrls
   }
 
-  const fetchPhotos = useCallback(async () => {
-    const listRef = ref(storage)
+  const updatePhotoAtIndex = useCallback((index: number, updates: Partial<Photo>) => {
+    setLoadedPhotos((prev) =>
+      prev.map((photo, i) => (i === index ? { ...photo, ...updates } : photo)),
+    )
+  }, [])
 
-    try {
-      const mosaic = await listAll(listRef)
-      const urls = await Promise.all(mosaic.items.map((item) => getDownloadURL(item)))
-      const sortedUrls = getSortedUrlsForGrid(urls)
+  const isSentinelVisible = useCallback(() => {
+    const element = sentinelRef.current
+    if (!element) return false
+    const rect = element.getBoundingClientRect()
+    return rect.top < window.innerHeight + 600
+  }, [])
 
-      setAllPhotos(
-        sortedUrls.map((url) => ({
+  const loadNextBatchRef = useRef<() => void>(() => {})
+
+  const loadNextBatch = useCallback(async () => {
+    if (isPreloadingRef.current || loadedCountRef.current >= allPhotosRef.current.length) return
+
+    isPreloadingRef.current = true
+    setIsPreloading(true)
+
+    const batchSize = getBatchSize()
+    const startIndex = loadedCountRef.current
+    const endIndex = Math.min(startIndex + batchSize, allPhotosRef.current.length)
+    const batchUrls = allPhotosRef.current.slice(startIndex, endIndex).map((photo) => photo.src)
+
+    const placeholders = createPlaceholderBatch(batchUrls)
+    loadedCountRef.current = endIndex
+    setLoadedPhotos((prev) => [...prev, ...placeholders])
+
+    await Promise.allSettled(
+      batchUrls.map(async (url, batchIndex) => {
+        const photoIndex = startIndex + batchIndex
+        try {
+          await loadImage(url)
+          updatePhotoAtIndex(photoIndex, { isLoaded: true, isLoading: false })
+        } catch (err) {
+          console.error('Error loading image:', err)
+          updatePhotoAtIndex(photoIndex, { isLoaded: false, isLoading: false })
+        }
+      }),
+    )
+
+    isPreloadingRef.current = false
+    setIsPreloading(false)
+
+    if (isSentinelVisible() && loadedCountRef.current < allPhotosRef.current.length) {
+      loadNextBatchRef.current()
+    }
+  }, [getBatchSize, updatePhotoAtIndex, isSentinelVisible])
+
+  useEffect(() => {
+    loadNextBatchRef.current = () => {
+      void loadNextBatch()
+    }
+  }, [loadNextBatch])
+
+  const tryLoadMore = useCallback(() => {
+    void loadNextBatch()
+  }, [loadNextBatch])
+
+  const { ref: observerRef } = useIntersectionObserver(tryLoadMore)
+
+  const setLoadMoreRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      sentinelRef.current = node
+      observerRef(node)
+    },
+    [observerRef],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+
+    const fetchPhotos = async () => {
+      const listRef = ref(storage)
+
+      try {
+        const mosaic = await listAll(listRef)
+        const urls = await Promise.all(mosaic.items.map((item) => getDownloadURL(item)))
+        if (cancelled) return
+
+        const sortedUrls = getSortedUrlsForGrid(urls)
+        const photos = sortedUrls.map((url) => ({
           src: url,
           alt: '',
           isLoaded: false,
           isLoading: false,
-        })),
-      )
-      setLoading(false)
-    } catch (error) {
-      console.error('Error fetching photos:', error)
-      setError(true)
+        }))
+
+        allPhotosRef.current = photos
+        setAllPhotos(photos)
+        setLoading(false)
+        void loadNextBatch()
+      } catch (err) {
+        console.error('Error fetching photos:', err)
+        if (!cancelled) setError(true)
+      }
     }
-  }, [])
 
-  const loadNextBatch = useCallback(async () => {
-    if (isPreloading || loadedPhotos.length >= allPhotos.length) return
+    void fetchPhotos()
 
-    setIsPreloading(true)
-    const batchSize = getBatchSize()
-    const startIndex = loadedPhotos.length
-    const endIndex = Math.min(startIndex + batchSize, allPhotos.length)
-    const batchUrls = allPhotos.slice(startIndex, endIndex).map((photo) => photo.src)
-
-    try {
-      const loadedBatch = await preloadBatch(batchUrls)
-      setLoadedPhotos((prev) => [...prev, ...loadedBatch])
-      setLoadedBatches((prev) => prev + 1)
-    } catch (error) {
-      console.error('Error loading batch:', error)
-    } finally {
-      setIsPreloading(false)
+    return () => {
+      cancelled = true
     }
-  }, [isPreloading, loadedPhotos.length, allPhotos, getBatchSize])
-
-  const { ref: loadMoreRef } = useIntersectionObserver(() => {
-    if (!isPreloading && loadedPhotos.length < allPhotos.length) {
-      loadNextBatch()
-    }
-  }, 0.1)
-
-  useEffect(() => {
-    fetchPhotos()
-  }, [fetchPhotos])
-
-  // Load first batch when photos are fetched
-  useEffect(() => {
-    if (allPhotos.length > 0 && loadedBatches === 0) {
-      loadNextBatch()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allPhotos.length, loadedBatches])
-
-  // Staggered display of loaded images
-  useEffect(() => {
-    if (loadedPhotos.length > 0 && visibleCount < loadedPhotos.length) {
-      const timer = setTimeout(() => {
-        setVisibleCount((prev) => prev + 1)
-      }, STAGGER_DELAY)
-
-      return () => clearTimeout(timer)
-    }
-  }, [loadedPhotos.length, visibleCount])
-
-  const displayImage = (index: number): boolean => !loading && !error && index < visibleCount
+  }, [loadNextBatch])
 
   const handleImageClick = (index: number) => {
     setModalImageIndex(index)
@@ -138,7 +173,13 @@ export default function Home() {
         <Header />
       </div>
       <div className={`${gridMargins}`}>
-        {!error && (
+        {loading && !error && (
+          <div className="flex justify-center py-24">
+            <LoadingSpinner size="lg" />
+          </div>
+        )}
+
+        {!loading && !error && (
           <div className={`${gridCols} ${gridGaps}`}>
             {loadedPhotos.map((photo, index) => (
               <ImageCard
@@ -146,14 +187,16 @@ export default function Home() {
                 index={index}
                 source={photo.src}
                 altText={photo.alt}
-                displayImage={displayImage(index)}
+                isLoading={photo.isLoading}
+                isLoaded={photo.isLoaded}
                 onClick={() => handleImageClick(index)}
               />
             ))}
 
-            {/* Load more trigger - invisible div that triggers loading */}
             {loadedPhotos.length < allPhotos.length && (
-              <div ref={loadMoreRef} className="col-span-3 h-20" />
+              <div ref={setLoadMoreRef} className="col-span-3 flex h-32 items-center justify-center">
+                {isPreloading && <LoadingSpinner size="md" />}
+              </div>
             )}
           </div>
         )}
@@ -163,7 +206,6 @@ export default function Home() {
         )}
       </div>
 
-      {/* Image Modal */}
       <ImageModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}

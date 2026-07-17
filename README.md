@@ -22,8 +22,10 @@ A curation of my latest analog pictures
 
 ## Installation
 
+Requires **Node 24+**.
+
 ```bash
-nvm use
+nvm use   # reads .nvmrc (Node 24)
 bun i
 bun run dev
 ```
