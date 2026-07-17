@@ -81,18 +81,23 @@ export default function Home() {
     loadedCountRef.current = endIndex
     setLoadedPhotos((prev) => [...prev, ...placeholders])
 
-    await Promise.allSettled(
-      batchUrls.map(async (url, batchIndex) => {
-        const photoIndex = startIndex + batchIndex
-        try {
-          await loadImage(url)
-          updatePhotoAtIndex(photoIndex, { isLoaded: true, isLoading: false })
-        } catch (err) {
+    // Start every download in parallel so loading stays fast...
+    const loadResults = batchUrls.map((url) =>
+      loadImage(url)
+        .then(() => true)
+        .catch((err) => {
           console.error('Error loading image:', err)
-          updatePhotoAtIndex(photoIndex, { isLoaded: false, isLoading: false })
-        }
-      }),
+          return false
+        }),
     )
+
+    // ...but reveal them one after another in grid order (left to right, top to
+    // bottom) so a tile only appears once the previous one has shown up.
+    for (let batchIndex = 0; batchIndex < loadResults.length; batchIndex++) {
+      const photoIndex = startIndex + batchIndex
+      const isLoaded = await loadResults[batchIndex]
+      updatePhotoAtIndex(photoIndex, { isLoaded, isLoading: false })
+    }
 
     isPreloadingRef.current = false
     setIsPreloading(false)
